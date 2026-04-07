@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-US Treasury Radar - 浑水美债需求检测表 v3.8
+US Treasury Radar - 浑水美债需求检测表 v3.9
 ==============================================
 """
 
