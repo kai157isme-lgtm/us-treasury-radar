@@ -1,33 +1,29 @@
 #!/usr/bin/env python3
 """
-US Treasury Radar - 浑水美债需求检测表 v4.0
+US Treasury Radar - 浑水美债需求检测表 v4.1
 ==============================================
 数据来源说明:
-- 美债总量: TreasuryDirect.gov API (实时)
-- 美联储持有: FRED API / TreasuryDirect (实时)
+- 美债总量: TreasuryDirect.gov (使用 requests 库)
+- 美联储持有: TreasuryDirect (使用 requests 库)
 - 各国持有: TIC 报告数据 (月度发布，标注为估算)
 """
 
-import subprocess
+import requests
 import json
-import re
 from datetime import datetime
 
 
 def get_treasury_data():
     """从 TreasuryDirect 获取美债总量"""
-    result = subprocess.run(
-        ['curl', '-s', '--max-time', '10', 
-         'https://www.treasurydirect.gov/NP_WS/debt/current'],
-        capture_output=True, text=True, timeout=15
-    )
-    
     try:
-        data = json.loads(result.stdout)
+        response = requests.get(
+            'https://www.treasurydirect.gov/NP_WS/debt/current',
+            timeout=10
+        )
+        data = response.json()
         current_debt = float(data.get('totalDebt', 0)) / 1e12
         debt_date = data.get('effectiveDate', '')
-    except:
-        # 备用：尝试从网页提取
+    except Exception as e:
         current_debt = None
         debt_date = ""
     
@@ -36,24 +32,20 @@ def get_treasury_data():
 
 def get_fed_holdings():
     """从 TreasuryDirect 获取美联储持有美债数据"""
-    # 方法1: 直接API
-    result = subprocess.run(
-        ['curl', '-s', '--max-time', '10',
-         'https://www.treasurydirect.gov/NP_WS/feddata/current'],
-        capture_output=True, text=True, timeout=15
-    )
-    
     try:
-        data = json.loads(result.stdout)
-        # 查找 Fed 持有
+        response = requests.get(
+            'https://www.treasurydirect.gov/NP_WS/feddata/current',
+            timeout=10
+        )
+        data = response.json()
         for item in data.get('accountData', []):
             if 'Federal Reserve' in item.get('account', ''):
                 fed_holdings = float(item.get('balance', 0)) / 1e12
                 return fed_holdings
-    except:
+    except Exception:
         pass
     
-    return None  # 无法获取时返回 None
+    return None
 
 
 def get_weekday_cn():
@@ -76,11 +68,9 @@ def get_global_demand_table():
     if fed_holding:
         fed_current = fed_holding
     else:
-        # 使用估算值（基于近期趋势）
         fed_current = 4.380
     
     # 各国持有数据 - 基于最新 TIC 报告 (2026年2月)
-    # 数据说明: TIC 月度数据有延迟，这些是估算值
     data = [
         {
             "项目": "美联储 (Fed)", 
@@ -150,7 +140,7 @@ def main():
     # 获取美债总量
     curr_debt, debt_date = get_treasury_data()
     if not curr_debt:
-        curr_debt = 38.982  # 备用值
+        curr_debt = 38.982
     
     # 供应端计算
     last_week_debt = curr_debt - 0.045
